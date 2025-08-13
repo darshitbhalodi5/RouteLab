@@ -33,12 +33,31 @@ export async function POST(req: NextRequest) {
     hops: [],
   });
 
+  let gluexMs = 0;
+  let lifiMs = 0;
+
+  const gluexStart = Date.now();
+  const gluexPromise: Promise<NormalizedRouteQuote> = getGluexRouteQuote(request)
+    .catch((e) => fallback("gluex", String(e)))
+    .then((res) => {
+      gluexMs = Date.now() - gluexStart;
+      return res;
+    });
+
+  const lifiStart = Date.now();
+  const lifiPromise: Promise<NormalizedRouteQuote> = getLifiRouteQuote(request)
+    .catch((e) => fallback("lifi", String(e)))
+    .then((res) => {
+      lifiMs = Date.now() - lifiStart;
+      return res;
+    });
+
   const [gluex, lifi]: [NormalizedRouteQuote, NormalizedRouteQuote] = await Promise.all([
-    getGluexRouteQuote(request).catch((e) => fallback("gluex", String(e))),
-    getLifiRouteQuote(request).catch((e) => fallback("lifi", String(e))),
+    gluexPromise,
+    lifiPromise,
   ]);
 
-  const payload: CompareRoutesResponse = { gluex, lifi };
+  const payload: CompareRoutesResponse = { gluex, lifi, metrics: { gluexMs, lifiMs } };
   return new Response(JSON.stringify(payload), {
     status: 200,
     headers: { "content-type": "application/json" },

@@ -34,7 +34,7 @@ export function RouteGraph({ hops, tokenMeta }: { hops: RouteHop[]; tokenMeta?: 
           const labelChar = label?.[0]?.toUpperCase() || "?";
           return (
             <div key={`node-${idx}`} className="flex items-center gap-2">
-              <span className="flex items-center gap-2 px-2 py-1 rounded bg-[var(--surface)] border" style={{ borderColor: "var(--border)" }}>
+              <span className="flex items-center gap-2 px-2 py-1 rounded bg-[var(--surface)] border" style={{ borderColor: "var(--border)" }} title={token}>
                 {meta?.logoURI ? (
                   <Image src={meta.logoURI} alt={meta.symbol || token} width={16} height={16} className="h-4 w-4 rounded-full object-cover" unoptimized />
                 ) : (
@@ -50,7 +50,7 @@ export function RouteGraph({ hops, tokenMeta }: { hops: RouteHop[]; tokenMeta?: 
       </div>
       <div className="mt-1 text-[11px] text-[#9fb0c5] flex flex-wrap gap-4">
         {hops.map((h, i) => (
-          <span key={`edge-${i}`}>[{h.poolId}{h.feeBps ? ` · ${h.feeBps} bps` : ""}]</span>
+          <span key={`edge-${i}`} title={`${h.poolId}${h.feeBps ? ` · ${h.feeBps} bps` : ''}`}>Step {i + 1}: [{h.poolId}{h.feeBps ? ` · ${h.feeBps} bps` : ""}]</span>
         ))}
       </div>
     </div>

@@ -35,4 +35,8 @@ export interface NormalizedRouteQuote {
 export interface CompareRoutesResponse {
   gluex?: NormalizedRouteQuote;
   lifi?: NormalizedRouteQuote;
+  metrics?: {
+    gluexMs?: number;
+    lifiMs?: number;
+  };
 } 

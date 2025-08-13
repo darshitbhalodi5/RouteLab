@@ -28,6 +28,8 @@ export default function RoutesPage() {
   const [chainModalOpen, setChainModalOpen] = useState(false);
   const [tokenInStatus, setTokenInStatus] = useState<{ ok: boolean; msg?: string }>({ ok: true });
   const [tokenOutStatus, setTokenOutStatus] = useState<{ ok: boolean; msg?: string }>({ ok: true });
+  const [tokenInInfo, setTokenInInfo] = useState<{ symbol?: string; decimals?: number } | null>(null);
+  const [tokenOutInfo, setTokenOutInfo] = useState<{ symbol?: string; decimals?: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -61,16 +63,21 @@ export default function RoutesPage() {
     let abort = false;
     const handle = setTimeout(async () => {
       try {
-        if (!tokenIn.trim()) return setTokenInStatus({ ok: true });
-        if (chainId === 999) return setTokenInStatus({ ok: true });
+        if (!tokenIn.trim()) { setTokenInStatus({ ok: true }); setTokenInInfo(null); return; }
+        if (chainId === 999) { setTokenInStatus({ ok: true }); setTokenInInfo(null); return; }
         if (!isProbablyAddressForChain(chainId, tokenIn.trim()) && tokenIn.trim().toUpperCase() !== "ETH") {
-          return setTokenInStatus({ ok: false, msg: "Invalid token address for selected chain" });
+          setTokenInStatus({ ok: false, msg: "Invalid token address for selected chain" });
+          setTokenInInfo(null);
+          return;
         }
         const res = await fetch("/api/tokens/validate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chainId, address: tokenIn.trim() }) });
         const json = await res.json();
-        if (!abort) setTokenInStatus(json.ok ? { ok: true } : { ok: false, msg: json.reason });
+        if (!abort) {
+          setTokenInStatus(json.ok ? { ok: true } : { ok: false, msg: json.reason });
+          setTokenInInfo(json.ok ? { symbol: json.symbol, decimals: json.decimals } : null);
+        }
       } catch {
-        if (!abort) setTokenInStatus({ ok: false, msg: "Validation failed" });
+        if (!abort) { setTokenInStatus({ ok: false, msg: "Validation failed" }); setTokenInInfo(null); }
       }
     }, 300);
     return () => { abort = true; clearTimeout(handle); };
@@ -80,16 +87,21 @@ export default function RoutesPage() {
     let abort = false;
     const handle = setTimeout(async () => {
       try {
-        if (!tokenOut.trim()) return setTokenOutStatus({ ok: true });
-        if (chainId === 999) return setTokenOutStatus({ ok: true });
+        if (!tokenOut.trim()) { setTokenOutStatus({ ok: true }); setTokenOutInfo(null); return; }
+        if (chainId === 999) { setTokenOutStatus({ ok: true }); setTokenOutInfo(null); return; }
         if (!isProbablyAddressForChain(chainId, tokenOut.trim()) && tokenOut.trim().toUpperCase() !== "ETH") {
-          return setTokenOutStatus({ ok: false, msg: "Invalid token address for selected chain" });
+          setTokenOutStatus({ ok: false, msg: "Invalid token address for selected chain" });
+          setTokenOutInfo(null);
+          return;
         }
         const res = await fetch("/api/tokens/validate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chainId, address: tokenOut.trim() }) });
         const json = await res.json();
-        if (!abort) setTokenOutStatus(json.ok ? { ok: true } : { ok: false, msg: json.reason });
+        if (!abort) {
+          setTokenOutStatus(json.ok ? { ok: true } : { ok: false, msg: json.reason });
+          setTokenOutInfo(json.ok ? { symbol: json.symbol, decimals: json.decimals } : null);
+        }
       } catch {
-        if (!abort) setTokenOutStatus({ ok: false, msg: "Validation failed" });
+        if (!abort) { setTokenOutStatus({ ok: false, msg: "Validation failed" }); setTokenOutInfo(null); }
       }
     }, 300);
     return () => { abort = true; clearTimeout(handle); };
@@ -194,11 +206,17 @@ export default function RoutesPage() {
           <span className="text-sm">Token In (address; ETH symbol allowed)</span>
           <input value={tokenIn} onChange={(e) => setTokenIn(e.target.value)} className={`input ${!tokenInStatus.ok ? "border-red-500" : ""}`} placeholder="0x... or ETH" />
           {!tokenInStatus.ok && <span className="text-xs text-red-600">{tokenInStatus.msg}</span>}
+          {tokenInStatus.ok && tokenInInfo && (
+            <span className="text-xs text-[#9fb0c5]">{tokenInInfo.symbol ? `${tokenInInfo.symbol.toUpperCase()} · ` : ""}{typeof tokenInInfo.decimals === 'number' ? `${tokenInInfo.decimals} decimals` : ""}</span>
+          )}
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-sm">Token Out (address; ETH symbol allowed)</span>
           <input value={tokenOut} onChange={(e) => setTokenOut(e.target.value)} className={`input ${!tokenOutStatus.ok ? "border-red-500" : ""}`} placeholder="0x... or ETH" />
           {!tokenOutStatus.ok && <span className="text-xs text-red-600">{tokenOutStatus.msg}</span>}
+          {tokenOutStatus.ok && tokenOutInfo && (
+            <span className="text-xs text-[#9fb0c5]">{tokenOutInfo.symbol ? `${tokenOutInfo.symbol.toUpperCase()} · ` : ""}{typeof tokenOutInfo.decimals === 'number' ? `${tokenOutInfo.decimals} decimals` : ""}</span>
+          )}
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-sm">Amount In</span>
@@ -227,8 +245,8 @@ export default function RoutesPage() {
       {error && <div className="text-red-600 text-sm">{error}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CompareCard title="GlueX" data={result?.gluex} slippageBps={slippageBps} loading={loading} tokenMeta={enableLogos ? tokenMeta : undefined} />
-        <CompareCard title="LI.FI" data={result?.lifi} slippageBps={slippageBps} loading={loading} tokenMeta={enableLogos ? tokenMeta : undefined} />
+        <CompareCard title="GlueX" data={result?.gluex} slippageBps={slippageBps} loading={loading} tokenMeta={enableLogos ? tokenMeta : undefined} latencyMs={result?.metrics?.gluexMs} />
+        <CompareCard title="LI.FI" data={result?.lifi} slippageBps={slippageBps} loading={loading} tokenMeta={enableLogos ? tokenMeta : undefined} latencyMs={result?.metrics?.lifiMs} />
       </div>
 
       <ChainSelectorModal
@@ -241,13 +259,16 @@ export default function RoutesPage() {
   );
 }
 
-function CompareCard({ title, data, slippageBps, loading, tokenMeta }: { title: string; data: NormalizedRouteQuote | undefined; slippageBps: number; loading: boolean; tokenMeta?: Record<string, { symbol?: string; logoURI?: string }> }) {
+function CompareCard({ title, data, slippageBps, loading, tokenMeta, latencyMs }: { title: string; data: NormalizedRouteQuote | undefined; slippageBps: number; loading: boolean; tokenMeta?: Record<string, { symbol?: string; logoURI?: string }>; latencyMs?: number }) {
   if (loading) return <SkeletonCard title={title} />;
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--border)" }}>{title}</span>
+          {typeof latencyMs === 'number' && (
+            <span className="text-[10px] text-[#9fb0c5]">{latencyMs} ms</span>
+          )}
         </div>
         <CopyJsonButton payload={data?.raw ?? data} />
       </div>
