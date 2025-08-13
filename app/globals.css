@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0b1220;
+  --foreground: #e6edf3;
+  --surface: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.12);
+  --primary: #6366f1;
+  --primary-hover: #5458e8;
 }
 
 @theme inline {
@@ -12,15 +16,65 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+.container {
+  @apply max-w-6xl mx-auto px-4 sm:px-6;
+}
+
+.card {
+  background-color: var(--surface);
+  border-color: var(--border);
+  @apply border rounded-lg p-4 shadow-sm transition-colors;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  @apply text-white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-outline {
+  border-color: var(--border);
+  @apply border;
+}
+
+.btn-outline:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.input {
+  background-color: rgba(255, 255, 255, 0.04);
+  border-color: var(--border);
+  @apply border rounded px-3 py-2 shadow-sm transition-colors;
+}
+
+.a,
+a {
+  color: var(--foreground);
+}
+
+a:hover {
+  color: #c7d2fe;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
