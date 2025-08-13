@@ -14,6 +14,24 @@ const presets = [
 
 const defaultUserAddress = (process.env.NEXT_PUBLIC_DEFAULT_USER_ADDRESS || "").trim();
 
+async function fetchWithRetries(url: string, init: RequestInit, retries = 2): Promise<Response> {
+  let attempt = 0;
+  let lastErr: unknown;
+  while (attempt <= retries) {
+    try {
+      const res = await fetch(url, init);
+      if (res.ok) return res;
+      lastErr = new Error(await res.text());
+    } catch (e) {
+      lastErr = e;
+    }
+    const backoffMs = Math.min(1500, 200 * Math.pow(2, attempt));
+    await new Promise((r) => setTimeout(r, backoffMs));
+    attempt++;
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
 export default function RoutesPage() {
   const [chainId, setChainId] = useState<number>(1);
   const [tokenIn, setTokenIn] = useState<string>(presets[0].tokenIn);
@@ -140,15 +158,11 @@ export default function RoutesPage() {
         ...base,
         ...(defaultUserAddress ? { fromAddress: defaultUserAddress, toAddress: defaultUserAddress } : {}),
       };
-      const res = await fetch("/api/routes/compare", {
+      const res = await fetchWithRetries("/api/routes/compare", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(t || `HTTP ${res.status}`);
-      }
       const json = (await res.json()) as CompareRoutesResponse;
       setResult(json);
     } catch (err) {
@@ -213,7 +227,7 @@ export default function RoutesPage() {
         <label className="flex flex-col gap-1">
           <span className="text-sm">Token Out (address; ETH symbol allowed)</span>
           <input value={tokenOut} onChange={(e) => setTokenOut(e.target.value)} className={`input ${!tokenOutStatus.ok ? "border-red-500" : ""}`} placeholder="0x... or ETH" />
-          {!tokenOutStatus.ok && <span className="text-xs text-red-600">{tokenOutStatus.msg}</span>}
+        	{!tokenOutStatus.ok && <span className="text-xs text-red-600">{tokenOutStatus.msg}</span>}
           {tokenOutStatus.ok && tokenOutInfo && (
             <span className="text-xs text-[#9fb0c5]">{tokenOutInfo.symbol ? `${tokenOutInfo.symbol.toUpperCase()} · ` : ""}{typeof tokenOutInfo.decimals === 'number' ? `${tokenOutInfo.decimals} decimals` : ""}</span>
           )}
@@ -296,7 +310,12 @@ function CompareCard({ title, data, slippageBps, loading, tokenMeta, latencyMs }
           </div>
         </div>
       ) : (
-        data ? <div className="text-sm text-red-500">{data.reason || "Failed to fetch route"}</div> : null
+        data ? (
+          <div className="text-sm text-red-500 flex items-center gap-2">
+            <span className="px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/40 text-[10px]">ERROR</span>
+            <span>{data.reason || "Failed to fetch route"}</span>
+          </div>
+        ) : null
       )}
     </div>
   );

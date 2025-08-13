@@ -89,7 +89,6 @@ export async function getGluexRouteQuote(req: BuildRouteRequest): Promise<Normal
     return { success: false, provider: "gluex", reason: `HTTP ${res.status}: ${text}`, expectedOut: "0", hops: [] };
   }
 
-  // Some GlueX responses wrap the payload under { statusCode, result }
   const dataRoot = unwrapResult(rawData);
 
   const toAmountRaw =
@@ -120,7 +119,6 @@ export async function getGluexRouteQuote(req: BuildRouteRequest): Promise<Normal
     }
   }
 
-  // Last-resort fallback: single synthetic hop with a provider hint
   if (hops.length === 0) {
     const tool =
       readPath<string>(dataRoot, ["tool"]) ||
@@ -173,7 +171,7 @@ function extractHops(root: unknown, fallbackIn: string, fallbackOut: string): Ro
 }
 
 function toDecimalString(amountRaw: string, decimals: number): string {
-  if (amountRaw.includes(".")) return amountRaw; // already decimal
+  if (amountRaw.includes(".")) return amountRaw;
   return fromBaseUnits(amountRaw, decimals);
 }
 
