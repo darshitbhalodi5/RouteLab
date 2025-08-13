@@ -22,7 +22,8 @@ export async function getLifiRouteQuote(req: BuildRouteRequest): Promise<Normali
 
   const res = await fetch(url.toString(), { next: { revalidate: 0 } });
   if (!res.ok) {
-    const reason = await safeText(res);
+    const text = await safeText(res);
+    const reason = normalizeLifiError(res.status, text);
     return { success: false, provider: "lifi", reason, expectedOut: "0", hops: [] };
   }
   const data: unknown = await res.json();
@@ -62,6 +63,15 @@ export async function getLifiRouteQuote(req: BuildRouteRequest): Promise<Normali
     hops,
     raw: data,
   };
+}
+
+function normalizeLifiError(status: number, text: string): string {
+  const lower = text.toLowerCase();
+  if (status === 429 || lower.includes("rate limit")) return "LI.FI rate limited";
+  if (status === 400 && (lower.includes("invalid") || lower.includes("bad request"))) return "LI.FI invalid request";
+  if (status === 404) return "LI.FI route not found";
+  if (status >= 500) return "LI.FI server error";
+  return text || `HTTP ${status}`;
 }
 
 function readObj(root: unknown, key: string): unknown {

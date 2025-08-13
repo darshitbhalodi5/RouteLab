@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { BuildRouteRequest, CompareRoutesResponse, NormalizedRouteQuote } from "@/types/routing";
 import { getGluexRouteQuote } from "@/lib/providers/gluex";
 import { getLifiRouteQuote } from "@/lib/providers/lifi";
+import { recordCompareMetric } from "@/lib/metrics";
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as Partial<BuildRouteRequest>;
@@ -58,6 +59,35 @@ export async function POST(req: NextRequest) {
   ]);
 
   const payload: CompareRoutesResponse = { gluex, lifi, metrics: { gluexMs, lifiMs } };
+
+  try {
+    recordCompareMetric({ gluexSuccess: gluex.success, lifiSuccess: lifi.success, gluexMs, lifiMs });
+  } catch {}
+
+  try {
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        routeCompare: {
+          chainId: request.chainId,
+          tokenIn: request.tokenIn,
+          tokenOut: request.tokenOut,
+          amountIn: request.amountIn,
+        },
+        gluex: {
+          success: gluex.success,
+          expectedOut: gluex.expectedOut,
+          ms: gluexMs,
+        },
+        lifi: {
+          success: lifi.success,
+          expectedOut: lifi.expectedOut,
+          ms: lifiMs,
+        },
+      })
+    );
+  } catch {}
+
   return new Response(JSON.stringify(payload), {
     status: 200,
     headers: { "content-type": "application/json" },

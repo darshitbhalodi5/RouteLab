@@ -86,7 +86,8 @@ export async function getGluexRouteQuote(req: BuildRouteRequest): Promise<Normal
   const rawData: unknown = await res.json().catch(async () => ({ error: await safeText(res) }));
   if (!res.ok) {
     const text = typeof rawData === "object" && rawData !== null ? JSON.stringify(rawData) : String(rawData);
-    return { success: false, provider: "gluex", reason: `HTTP ${res.status}: ${text}`, expectedOut: "0", hops: [] };
+    const reason = normalizeGluexError(res.status, text);
+    return { success: false, provider: "gluex", reason, expectedOut: "0", hops: [] };
   }
 
   const dataRoot = unwrapResult(rawData);
@@ -141,6 +142,16 @@ export async function getGluexRouteQuote(req: BuildRouteRequest): Promise<Normal
     hops,
     raw: rawData,
   };
+}
+
+function normalizeGluexError(status: number, text: string): string {
+  const lower = text.toLowerCase();
+  if (status === 401 || status === 403) return "GlueX unauthorized (check API key)";
+  if (status === 429 || lower.includes("rate")) return "GlueX rate limited";
+  if (status === 400 && (lower.includes("invalid") || lower.includes("bad request"))) return "GlueX invalid request";
+  if (status === 404) return "GlueX route not found";
+  if (status >= 500) return "GlueX server error";
+  return text || `HTTP ${status}`;
 }
 
 function unwrapResult(data: unknown): unknown {
