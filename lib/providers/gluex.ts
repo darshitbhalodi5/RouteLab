@@ -1,11 +1,25 @@
 import { BuildRouteRequest, NormalizedRouteQuote, RouteHop } from "@/types/routing";
 import { toBaseUnits, fromBaseUnits } from "@/lib/units";
 import { resolveToken } from "@/lib/tokenResolver";
-import { getChainName } from "@/lib/chains";
 
 const GLUEX_BASE_URL = process.env.GLUEX_BASE_URL;
 const GLUEX_API_KEY = process.env.GLUEX_API_KEY;
 const GLUEX_UNIQUE_PID = process.env.GLUEX_UNIQUE_PID;
+
+const GLUEX_CHAIN_ID_MAP: Record<number, string> = {
+  1: "ethereum",
+  42161: "arbitrum-one",
+  10: "optimism",
+  8453: "base",
+  11155111: "sepolia",
+  421614: "arbitrum-sepolia",
+  11155420: "optimism-sepolia",
+  84532: "base-sepolia",
+};
+
+function getGluexChainSlug(chainId: number): string | undefined {
+  return GLUEX_CHAIN_ID_MAP[chainId];
+}
 
 export async function getGluexRouteQuote(req: BuildRouteRequest): Promise<NormalizedRouteQuote> {
   if (!GLUEX_BASE_URL || !GLUEX_API_KEY) {
@@ -18,7 +32,7 @@ export async function getGluexRouteQuote(req: BuildRouteRequest): Promise<Normal
     };
   }
 
-  const chainName = getChainName(req.chainId);
+  const chainName = getGluexChainSlug(req.chainId);
   if (!chainName) {
     return {
       success: false,
