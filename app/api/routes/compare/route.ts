@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { BuildRouteRequest, CompareRoutesResponse, NormalizedRouteQuote } from "../../../../lib/types/routing";
-import { getGluexRouteQuote } from "../../../../lib/providers/gluex";
-import { getLifiRouteQuote } from "../../../../lib/providers/lifi";
+import { BuildRouteRequest, CompareRoutesResponse, NormalizedRouteQuote } from "@/types/routing";
+import { getGluexRouteQuote } from "@/lib/providers/gluex";
+import { getLifiRouteQuote } from "@/lib/providers/lifi";
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as Partial<BuildRouteRequest>;
@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
     tokenOut: String(body.tokenOut),
     amountIn: String(body.amountIn),
     slippageBps: Number(body.slippageBps),
+    fromAddress: body.fromAddress ? String(body.fromAddress) : undefined,
+    toAddress: body.toAddress ? String(body.toAddress) : undefined,
   };
 
   const fallback = (provider: "gluex" | "lifi", reason: string): NormalizedRouteQuote => ({
