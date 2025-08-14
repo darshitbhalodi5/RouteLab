@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BuildRouteRequest, CompareRoutesResponse, NormalizedRouteQuote } from "@/types/routing";
 import { RouteGraph } from "@/components/RouteGraph";
 import { isProbablyAddressForChain } from "@/lib/address";
@@ -32,16 +32,6 @@ async function fetchWithRetries(url: string, init: RequestInit, retries = 2): Pr
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
-type HistoryItem = {
-  t: number;
-  gluexOk: boolean;
-  lifiOk: boolean;
-  gluexMs?: number;
-  lifiMs?: number;
-};
-
-const HISTORY_SIZE = 8;
-
 export default function RoutesPage() {
   const [chainId, setChainId] = useState<number>(1);
   const [tokenIn, setTokenIn] = useState<string>(presets[0].tokenIn);
@@ -58,11 +48,30 @@ export default function RoutesPage() {
   const [tokenOutStatus, setTokenOutStatus] = useState<{ ok: boolean; msg?: string }>({ ok: true });
   const [tokenInInfo, setTokenInInfo] = useState<{ symbol?: string; decimals?: number } | null>(null);
   const [tokenOutInfo, setTokenOutInfo] = useState<{ symbol?: string; decimals?: number } | null>(null);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [status, setStatus] = useState<{ lifiConfigured?: boolean; gluexConfigured?: boolean }>({});
+  const didApplyQueryRef = useRef(false);
+
+  // Prefill from query string
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const qChain = sp.get('chainId');
+      const qIn = sp.get('tokenIn');
+      const qOut = sp.get('tokenOut');
+      const qAmt = sp.get('amountIn');
+      const qSlip = sp.get('slippageBps');
+      const hasAny = !!(qChain || qIn || qOut || qAmt || qSlip);
+      if (qChain) setChainId(Number(qChain));
+      if (qIn) setTokenIn(qIn);
+      if (qOut) setTokenOut(qOut);
+      if (qAmt) setAmountIn(qAmt);
+      if (qSlip) setSlippageBps(Number(qSlip));
+      if (hasAny) didApplyQueryRef.current = true;
+    } catch {}
+  }, []);
 
   useEffect(() => {
     try {
+      if (didApplyQueryRef.current) return;
       const saved = localStorage.getItem("routelabForm");
       if (saved) {
         const v = JSON.parse(saved);
@@ -183,17 +192,6 @@ export default function RoutesPage() {
       });
       const json = (await res.json()) as CompareRoutesResponse;
       setResult(json);
-      setHistory((prev) => {
-        const item: HistoryItem = {
-          t: Date.now(),
-          gluexOk: Boolean(json.gluex?.success),
-          lifiOk: Boolean(json.lifi?.success),
-          gluexMs: json.metrics?.gluexMs,
-          lifiMs: json.metrics?.lifiMs,
-        };
-        const next = [item, ...prev].slice(0, HISTORY_SIZE);
-        return next;
-      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -215,6 +213,8 @@ export default function RoutesPage() {
     return { glue, lif, bestProvider, bestValue, otherValue, delta, bps, minOutGlue, minOutLifi };
   }, [result, slippageBps]);
 
+  const [status, setStatus] = useState<{ lifiConfigured?: boolean; gluexConfigured?: boolean }>({});
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between">
@@ -234,10 +234,9 @@ export default function RoutesPage() {
               {p.label}
             </button>
           ))}
+          <StatusBadges status={status} />
         </div>
       </div>
-
-      <MetricsStrip history={history} status={status} />
 
       <form onSubmit={onSubmit} className="card grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="flex flex-col gap-1">
@@ -304,50 +303,12 @@ export default function RoutesPage() {
   );
 }
 
-function MetricsStrip({ history, status }: { history: HistoryItem[]; status: { lifiConfigured?: boolean; gluexConfigured?: boolean } }) {
-  const avg = (vals: Array<number | undefined>) => {
-    const xs = vals.filter((v): v is number => typeof v === 'number');
-    if (!xs.length) return undefined;
-    return Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
-  };
-  const gluexAvg = avg(history.map(h => h.gluexMs));
-  const lifiAvg = avg(history.map(h => h.lifiMs));
-  const gluexOkCount = history.filter(h => h.gluexOk).length;
-  const lifiOkCount = history.filter(h => h.lifiOk).length;
-  const total = history.length || HISTORY_SIZE;
-  const Dot = ({ ok }: { ok: boolean }) => (
-    <span className={`inline-block h-2 w-2 rounded-full ${ok ? 'bg-green-500' : 'bg-red-500'}`} />
-  );
+function StatusBadges({ status }: { status: { lifiConfigured?: boolean; gluexConfigured?: boolean } }) {
   return (
-    <div className="card flex items-center justify-between flex-wrap gap-3">
-      <div className="flex items-center gap-3">
-        <span className="text-xs px-2 py-1 rounded border" style={{ borderColor: 'var(--border)' }}>Status</span>
-        <span className="text-[11px] text-[#9fb0c5] flex items-center gap-2">
-          <span className={`px-1.5 py-0.5 rounded border text-[10px] ${status.gluexConfigured ? 'border-green-500/40 text-green-500' : 'border-red-500/40 text-red-500'}`}>GlueX {status.gluexConfigured ? 'OK' : 'MISSING'}</span>
-          <span className={`px-1.5 py-0.5 rounded border text-[10px] ${status.lifiConfigured ? 'border-green-500/40 text-green-500' : 'border-red-500/40 text-red-500'}`}>LI.FI {status.lifiConfigured ? 'OK' : 'MISSING'}</span>
-        </span>
-      </div>
-      <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2">
-          <span className="text-xs px-2 py-1 rounded border" style={{ borderColor: 'var(--border)' }}>GlueX</span>
-          <span className="text-[11px] text-[#9fb0c5]">{typeof gluexAvg === 'number' ? `${gluexAvg} ms avg` : '-'} · {gluexOkCount}/{total} ok</span>
-          <span className="flex items-center gap-1">
-            {Array.from({ length: Math.min(history.length, HISTORY_SIZE) }).map((_, i) => (
-              <Dot key={`g-${i}`} ok={history[i]?.gluexOk ?? false} />
-            ))}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs px-2 py-1 rounded border" style={{ borderColor: 'var(--border)' }}>LI.FI</span>
-          <span className="text-[11px] text-[#9fb0c5]">{typeof lifiAvg === 'number' ? `${lifiAvg} ms avg` : '-'} · {lifiOkCount}/{total} ok</span>
-          <span className="flex items-center gap-1">
-            {Array.from({ length: Math.min(history.length, HISTORY_SIZE) }).map((_, i) => (
-              <Dot key={`l-${i}`} ok={history[i]?.lifiOk ?? false} />
-            ))}
-          </span>
-        </div>
-      </div>
-    </div>
+    <span className="inline-flex items-center gap-2">
+      <span className={`px-1.5 py-0.5 rounded border text-[10px] ${status.gluexConfigured ? 'border-green-500/40 text-green-500' : 'border-red-500/40 text-red-500'}`}>GlueX {status.gluexConfigured ? 'OK' : 'MISSING'}</span>
+      <span className={`px-1.5 py-0.5 rounded border text-[10px] ${status.lifiConfigured ? 'border-green-500/40 text-green-500' : 'border-red-500/40 text-red-500'}`}>LI.FI {status.lifiConfigured ? 'OK' : 'MISSING'}</span>
+    </span>
   );
 }
 
